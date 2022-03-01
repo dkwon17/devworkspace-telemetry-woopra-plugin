@@ -1,0 +1,46 @@
+name: woopra-plugin CI
+
+on: 
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: |
+          docker build --build-arg GITHUB_USERNAME=${GH_USERNAME} --build-arg GITHUB_TOKEN=${GH_TOKEN} -t quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG} -f src/main/docker/Dockerfile.multistage .
+        env:
+          GH_USERNAME: ${{ secrets.GH_USERNAME }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+          ORGANIZATION: eclipse
+          TAG: latest
+      - name: set LATEST_IMAGE environment variable
+        run: echo "LATEST_IMAGE=quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG}" >> $GITHUB_ENV
+        env:
+          ORGANIZATION: eclipse
+          TAG: latest
+      - name: set SHA_IMAGE environment variable
+        run: echo "SHA_IMAGE=quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+        env:
+          ORGANIZATION: eclipse
+      - name: tag SHA_IMAGE
+        run: docker tag $LATEST_IMAGE $SHA_IMAGE
+      - name: Log into docker registry
+        run: docker login ${REGISTRY} -u ${USERNAME} -p ${PASSWORD}
+        env:
+          REGISTRY: quay.io
+          USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          PASSWORD: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+      - name: Push image latest
+        run: docker push $LATEST_IMAGE
+        env:
+          ORGANIZATION: eclipse
+          TAG: latest
+      - name: Push image sha
+        run: docker push $SHA_IMAGE
+        env:
+          ORGANIZATION: eclipse
+          TAG: ${GITHUB_SHA:0:7}
