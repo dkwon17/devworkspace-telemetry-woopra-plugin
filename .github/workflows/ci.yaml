@@ -1,6 +1,6 @@
 name: woopra-plugin CI
 
-on: 
+on:
   push:
     branches:
       - main
@@ -9,12 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Build
+      - uses: DeLaGuardo/setup-graalvm@5.0
+        with:
+          graalvm: '21.3.1'
+          java: 'java11'
+      - name: Install native-image component
         run: |
-          docker build --build-arg GITHUB_USERNAME=${GH_USERNAME} --build-arg GITHUB_TOKEN=${GH_TOKEN} -t quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG} -f src/main/docker/Dockerfile.multistage .
+          gu install native-image
+      - name: Build native application
+        run: |
+          ./mvnw --settings settings.xml clean package -Pnative -DskipTests
         env:
-          GH_USERNAME: ${{ secrets.GH_USERNAME }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+          GITHUB_USERNAME: ${{ secrets.GH_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      - name: Build image
+        run: |
+          docker build -t quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG} -f src/main/docker/Dockerfile.native .
+        env:
           ORGANIZATION: eclipse
           TAG: latest
       - name: set LATEST_IMAGE environment variable
