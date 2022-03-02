@@ -39,8 +39,8 @@ jobs:
         run: docker login ${REGISTRY} -u ${USERNAME} -p ${PASSWORD}
         env:
           REGISTRY: quay.io
-          USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          PASSWORD: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+          USERNAME: ${{ secrets.QUAY_USERNAME }}
+          PASSWORD: ${{ secrets.QUAY_PASSWORD }}
       - name: Push image latest
         run: docker push $LATEST_IMAGE
       - name: Push image sha
