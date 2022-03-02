@@ -1,5 +1,9 @@
 name: woopra-plugin CI
 
+env:
+  ORGANIZATION: 'eclipse'
+  TAG: 'latest'
+
 on:
   push:
     branches:
@@ -16,7 +20,7 @@ jobs:
       - name: Install native-image component
         run: |
           gu install native-image
-      - name: Build native application
+      - name: Build
         run: |
           ./mvnw --settings settings.xml clean package -Pnative -DskipTests
         env:
@@ -25,18 +29,10 @@ jobs:
       - name: Build image
         run: |
           docker build -t quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG} -f src/main/docker/Dockerfile.native .
-        env:
-          ORGANIZATION: eclipse
-          TAG: latest
       - name: set LATEST_IMAGE environment variable
         run: echo "LATEST_IMAGE=quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG}" >> $GITHUB_ENV
-        env:
-          ORGANIZATION: eclipse
-          TAG: latest
       - name: set SHA_IMAGE environment variable
         run: echo "SHA_IMAGE=quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${GITHUB_SHA:0:7}" >> $GITHUB_ENV
-        env:
-          ORGANIZATION: eclipse
       - name: tag SHA_IMAGE
         run: docker tag $LATEST_IMAGE $SHA_IMAGE
       - name: Log into docker registry
@@ -47,11 +43,7 @@ jobs:
           PASSWORD: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
       - name: Push image latest
         run: docker push $LATEST_IMAGE
-        env:
-          ORGANIZATION: eclipse
-          TAG: latest
       - name: Push image sha
         run: docker push $SHA_IMAGE
         env:
-          ORGANIZATION: eclipse
           TAG: ${GITHUB_SHA:0:7}

@@ -1,0 +1,31 @@
+name: woopra-plugin PR check
+
+env:
+  ORGANIZATION: 'eclipse'
+  TAG: 'pr-check'
+
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: DeLaGuardo/setup-graalvm@5.0
+        with:
+          graalvm: '21.3.0'
+          java: 'java11'
+      - name: Install native-image component
+        run: |
+          gu install native-image
+      - name: Build
+        run: |
+          ./mvnw --settings settings.xml clean verify -Pnative -DskipTests
+        env:
+          GITHUB_USERNAME: x-access-token
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+      - name: Build image
+        run: |
+          docker build -t quay.io/${ORGANIZATION}/devworkspace-telemetry-woopra-plugin:${TAG} -f src/main/docker/Dockerfile.native .
