@@ -35,7 +35,7 @@
     <dependency>
       <groupId>org.eclipse.che.incubator.workspace-telemetry</groupId>
       <artifactId>backend-base</artifactId>
-      <version>0.0.34</version>
+      <version>0.0.36</version>
     </dependency>
     <dependency>
       <groupId>com.squareup.okio</groupId>
