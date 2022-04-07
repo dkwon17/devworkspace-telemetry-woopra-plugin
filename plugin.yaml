@@ -7,7 +7,7 @@ metadata:
 components:
   - name: devworkspace-telemetry-woopra-plugin
     attributes:
-      app.kubernetes.io/component: che-theia
+      app.kubernetes.io/component: telemetry
       app.kubernetes.io/part-of: che-theia.eclipse.org
       workspaceEnv:
         - name: DEVWORKSPACE_TELEMETRY_BACKEND_PORT
