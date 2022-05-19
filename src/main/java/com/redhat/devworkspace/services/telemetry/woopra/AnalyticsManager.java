@@ -54,7 +54,6 @@ import java.util.concurrent.TimeUnit;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_INACTIVE;
 import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_STOPPED;
-import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_USED;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -179,19 +178,6 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
                         "Skipped sending 'WORKSPACE_INACTIVE' event for user: {} since it is the same event as the previous one",
                         dispatcher.getUserId());
                 return;
-            }
-            synchronized (dispatcher) {
-                AnalyticsEvent lastEvent = dispatcher.getLastEvent();
-                if (lastEvent == null) {
-                    return;
-                }
-
-                long expectedDuration = lastEvent.getExpectedDurationSeconds() * 1000;
-                if (lastEvent == WORKSPACE_INACTIVE || (expectedDuration >= 0
-                        && System.currentTimeMillis() > expectedDuration + dispatcher.getLastEventTime())) {
-                    dispatcher.sendTrackEvent(WORKSPACE_USED, commonProperties, dispatcher.getLastIp(),
-                            dispatcher.getLastUserAgent(), dispatcher.getLastResolution());
-                }
             }
         });
     }
