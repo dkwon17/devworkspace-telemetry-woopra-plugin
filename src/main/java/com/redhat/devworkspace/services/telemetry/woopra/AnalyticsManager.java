@@ -29,6 +29,7 @@ import org.eclipse.che.incubator.workspace.telemetry.finder.DevWorkspaceFinder;
 import org.eclipse.che.incubator.workspace.telemetry.finder.UsernameFinder;
 import org.slf4j.Logger;
 
+import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.Dependent;
 import javax.enterprise.inject.Alternative;
 import java.io.BufferedReader;
@@ -64,13 +65,16 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 @SuppressWarnings("JavadocReference")
 @Alternative
-@Dependent
+@ApplicationScoped
 public class AnalyticsManager extends AbstractAnalyticsManager {
-    private static final Logger LOG = getLogger(AnalyticsManager.class);
 
+    private static final Logger LOG = getLogger(AnalyticsManager.class);
     private static final String pingRequestFormat = "http://www.woopra.com/track/ping?host={0}&cookie={1}&timeout={2}&ka={3}&ra={4}";
+    private static final long startEventDebounceTime = 2000L;
 
     private final Analytics analytics;
+
+    private long startEventTime;
 
     String segmentWriteKey;
     String woopraDomain;
@@ -182,6 +186,7 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
         });
     }
 
+    @Override
     public void onActivity() {
         try {
             dispatchers.get(userId).onActivity();
@@ -190,6 +195,24 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
         }
     }
 
+    @Override
+    public void doSendEvent(AnalyticsEvent event, String ownerId, String ip, String userAgent, String resolution,
+                            Map<String, Object> properties) {
+        if (!isWithinWorkspaceStartDebounceTime(event)) {
+            super.doSendEvent(event, ownerId, ip, userAgent, resolution, properties);
+        }
+    }
+
+    private boolean isWithinWorkspaceStartDebounceTime(AnalyticsEvent event) {
+        long currentTime = System.currentTimeMillis();
+        if (event == AnalyticsEvent.WORKSPACE_STARTED) {
+            this.startEventTime = currentTime;
+            return false;
+        }
+        return currentTime - this.startEventTime < startEventDebounceTime;
+    }
+
+    @Override
     public void onEvent(AnalyticsEvent event, String ownerId, String ip, String userAgent, String resolution,
                         Map<String, Object> properties) {
         try {
@@ -387,6 +410,7 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
         }
     }
 
+    @Override
     public void destroy() {
         if (getUserId() != null) {
             EventDispatcher dispatcher;
