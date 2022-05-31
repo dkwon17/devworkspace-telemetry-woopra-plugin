@@ -26,16 +26,12 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-import static java.util.Map.entry;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
 @QuarkusTest
@@ -57,7 +53,7 @@ class AbstractAnalyticsManagerEventTest {
         analyticsManager.doSendEvent(AnalyticsEvent.EDITOR_USED, ownerId, ip, userAgent, resolution, properties);
 
         Mockito.verify(analyticsManager, Mockito.times(1))
-                .onEvent(eq(AnalyticsEvent.WORKSPACE_STARTED), any(), any(), any(), any(), any());
+                .onEvent(any(), any(), any(), any(), any(), any());
     }
 }
 
@@ -85,7 +81,7 @@ class MockAnalyticsProvider {
 }
 
 @Mock
-class HttpUrlConnectionProvider {
+class MockHttpUrlConnectionProvider {
     public HttpURLConnection getHttpUrlConnection(String uri)
             throws MalformedURLException, IOException, URISyntaxException {
         return mock(HttpURLConnection.class);
