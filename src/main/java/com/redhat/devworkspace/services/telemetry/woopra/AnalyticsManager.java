@@ -71,6 +71,9 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
     private static final Logger LOG = getLogger(AnalyticsManager.class);
     private static final String pingRequestFormat = "http://www.woopra.com/track/ping?host={0}&cookie={1}&timeout={2}&ka={3}&ra={4}";
     private static final long startEventDebounceTime = 2000L;
+    private static final long pingTimeoutSeconds = 30;
+    private static final long pingTimeout = pingTimeoutSeconds * 1000;
+    private static final long noActivityTimeout = 60000 * 3;
 
     private final Analytics analytics;
 
