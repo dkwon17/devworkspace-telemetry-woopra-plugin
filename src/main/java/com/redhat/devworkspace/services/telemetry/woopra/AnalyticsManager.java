@@ -22,7 +22,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.redhat.devworkspace.services.telemetry.woopra.exception.WoopraCredentialException;
 import com.segment.analytics.Analytics;
 import com.segment.analytics.messages.TrackMessage;
-import org.eclipse.che.api.core.rest.HttpJsonRequestFactory;
 import org.eclipse.che.incubator.workspace.telemetry.base.AbstractAnalyticsManager;
 import org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent;
 import org.eclipse.che.incubator.workspace.telemetry.finder.DevWorkspaceFinder;
@@ -37,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -51,6 +49,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_INACTIVE;
@@ -96,15 +95,14 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
     HttpUrlConnectionProvider httpUrlConnectionProvider = null;
 
     public AnalyticsManager(MainConfiguration config,
-                            HttpJsonRequestFactory requestFactory,
                             DevWorkspaceFinder devworkspaceFinder,
                             UsernameFinder usernameFinder,
                             AnalyticsProvider analyticsProvider,
                             HttpUrlConnectionProvider httpUrlConnectionProvider) {
         super(config, devworkspaceFinder, usernameFinder);
 
-        setSegmentWriteKey(config, requestFactory);
-        setWoopraDomain(config, requestFactory);
+        setSegmentWriteKey(config, httpUrlConnectionProvider);
+        setWoopraDomain(config, httpUrlConnectionProvider);
 
         if (isEnabled()) {
             this.httpUrlConnectionProvider = httpUrlConnectionProvider;
@@ -126,33 +124,44 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
                 }).build(CacheLoader.<String, EventDispatcher>from(userId -> newEventDispatcher(userId)));
     }
 
-    private void setSegmentWriteKey(MainConfiguration config, HttpJsonRequestFactory requestFactory) {
+    private void setSegmentWriteKey(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
         if (config.segmentWriteKey.isEmpty() && config.segmentWriteKeyEndpoint.isEmpty()) {
             throw new WoopraCredentialException("Requires a segment write key or the URL of an endpoint that will return the segment write key.  " +
                     " Set either SEGMENT_WRITE_KEY or SEGMENT_WRITE_KEY_ENDPOINT");
         } else if (config.segmentWriteKey.isEmpty()) {
-            segmentWriteKey = tryRequestFromUrl(config.segmentWriteKeyEndpoint.get(), requestFactory);
+            segmentWriteKey = tryRequestFromUrl(config.segmentWriteKeyEndpoint.get(), httpUrlConnectionProvider);
         } else {
             segmentWriteKey = config.segmentWriteKey.get();
         }
     }
 
-    private void setWoopraDomain(MainConfiguration config, HttpJsonRequestFactory requestFactory) {
+    private void setWoopraDomain(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
         if (config.woopraDomain.isEmpty() && config.woopraDomainEndpoint.isEmpty()) {
             throw new WoopraCredentialException("Requires a woopra domain or the URL of an endpoint that will return the woopra domain." +
                     " Set either WOOPRA_DOMAIN or WOOPRA_DOMAIN_ENDPOINT");
         } else if (config.woopraDomain.isEmpty()) {
-            woopraDomain = tryRequestFromUrl(config.woopraDomainEndpoint.get(), requestFactory);
+            woopraDomain = tryRequestFromUrl(config.woopraDomainEndpoint.get(), httpUrlConnectionProvider);
         } else {
             woopraDomain = config.woopraDomain.get();
         }
     }
 
-    private String tryRequestFromUrl(String endpoint, HttpJsonRequestFactory requestFactory) {
+    private String tryRequestFromUrl(String endpoint, HttpUrlConnectionProvider httpUrlConnectionProvider) {
+        BufferedReader br = null;
         try {
-            return requestFactory.fromUrl(endpoint).request().asString();
+            HttpURLConnection connection = httpUrlConnectionProvider.getHttpUrlConnection(endpoint);
+            br = new BufferedReader(new InputStreamReader((connection.getInputStream())));
+            return br.lines().collect(Collectors.joining()).strip();
         } catch (Exception e) {
             throw new RuntimeException("Can't access endpoint: " + endpoint, e);
+        } finally {
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 
@@ -462,7 +471,7 @@ class AnalyticsProvider {
 @Dependent
 class HttpUrlConnectionProvider {
     public HttpURLConnection getHttpUrlConnection(String uri)
-            throws MalformedURLException, IOException, URISyntaxException {
+            throws IOException, URISyntaxException {
         return (HttpURLConnection) new URI(uri).toURL().openConnection();
     }
 }
