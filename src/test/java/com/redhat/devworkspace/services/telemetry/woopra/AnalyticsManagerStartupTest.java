@@ -29,7 +29,6 @@ public class AnalyticsManagerStartupTest {
 
         assertThrows(WoopraCredentialException.class, () -> {
             AnalyticsManager am = new AnalyticsManager(config,
-                    null,
                     new MockDevworkspaceFinder(),
                     new MockUsernameFinder(),
                     null,
@@ -43,7 +42,6 @@ public class AnalyticsManagerStartupTest {
 
         assertThrows(WoopraCredentialException.class, () -> {
             AnalyticsManager am = new AnalyticsManager(config,
-                    null,
                     new MockDevworkspaceFinder(),
                     new MockUsernameFinder(),
                     null,

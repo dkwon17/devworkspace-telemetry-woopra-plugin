@@ -35,10 +35,4 @@ public class MainConfiguration extends BaseConfiguration {
 
     @ConfigProperty(name = "woopra.domain.endpoint")
     Optional<String> woopraDomainEndpoint;
-
-
-    @Produces
-    public HttpJsonRequestFactory httpJsonRequestFactory() {
-        return new DefaultHttpJsonRequestFactory();
-    }
 }
