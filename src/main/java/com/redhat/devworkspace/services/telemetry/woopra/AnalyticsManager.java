@@ -126,8 +126,8 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
 
     private void setSegmentWriteKey(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
         if (config.segmentWriteKey.isEmpty() && config.segmentWriteKeyEndpoint.isEmpty()) {
-            throw new WoopraCredentialException("Requires a segment write key or the URL of an endpoint that will return the segment write key.  " +
-                    " Set either SEGMENT_WRITE_KEY or SEGMENT_WRITE_KEY_ENDPOINT");
+            throw new WoopraCredentialException("Requires a Segment write key or the URL of an endpoint that will return the Segment write key. " +
+                    "Set either SEGMENT_WRITE_KEY or SEGMENT_WRITE_KEY_ENDPOINT");
         } else if (config.segmentWriteKey.isEmpty()) {
             segmentWriteKey = tryRequestFromUrl(config.segmentWriteKeyEndpoint.get(), httpUrlConnectionProvider);
         } else {
@@ -137,8 +137,8 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
 
     private void setWoopraDomain(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
         if (config.woopraDomain.isEmpty() && config.woopraDomainEndpoint.isEmpty()) {
-            throw new WoopraCredentialException("Requires a woopra domain or the URL of an endpoint that will return the woopra domain." +
-                    " Set either WOOPRA_DOMAIN or WOOPRA_DOMAIN_ENDPOINT");
+            throw new WoopraCredentialException("Requires a Woopra domain or the URL of an endpoint that will return the Woopra domain. " +
+                    "Set either WOOPRA_DOMAIN or WOOPRA_DOMAIN_ENDPOINT");
         } else if (config.woopraDomain.isEmpty()) {
             woopraDomain = tryRequestFromUrl(config.woopraDomainEndpoint.get(), httpUrlConnectionProvider);
         } else {
