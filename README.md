@@ -106,3 +106,6 @@ docker run -w /root/app -v $(pwd):/root/app -v \
   --directory che/plugins/eclipse/che-workspace-telemetry-woopra-plugin/0.0.1 \
   meta.yaml
 ```
+## Trademark
+
+"Che" is a trademark of the Eclipse Foundation.
