@@ -16,24 +16,15 @@ import java.util.Optional;
 public class MainConfigurationBuilder {
 
     private Optional<String> segmentWriteKey;
-    private Optional<String> woopraDomain;
     private Optional<String> segmentWriteKeyEndpoint;
-    private Optional<String> woopraDomainEndpoint;
 
     public MainConfigurationBuilder() {
         this.segmentWriteKey = Optional.empty();
-        this.woopraDomain = Optional.empty();
         this.segmentWriteKeyEndpoint = Optional.empty();
-        this.woopraDomainEndpoint = Optional.empty();
     }
 
     public MainConfigurationBuilder segmentWriteKey(String segmentWriteKey) {
         this.segmentWriteKey = Optional.of(segmentWriteKey);
-        return this;
-    }
-
-    public MainConfigurationBuilder woopraDomain(String woopraDomain) {
-        this.woopraDomain = Optional.of(woopraDomain);
         return this;
     }
 
@@ -42,17 +33,10 @@ public class MainConfigurationBuilder {
         return this;
     }
 
-    public MainConfigurationBuilder woopraDomainEndpoint(String woopraDomainEndpoint) {
-        this.woopraDomainEndpoint = Optional.of(woopraDomainEndpoint);
-        return this;
-    }
-
     public MainConfiguration build() {
         MainConfiguration config = new MainConfiguration();
         config.segmentWriteKey = this.segmentWriteKey;
-        config.woopraDomain = this.woopraDomain;
         config.segmentWriteKeyEndpoint = this.segmentWriteKeyEndpoint;
-        config.woopraDomainEndpoint = this.woopraDomainEndpoint;
         return config;
     }
 }

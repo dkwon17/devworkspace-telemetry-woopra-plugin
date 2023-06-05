@@ -27,8 +27,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -47,10 +46,8 @@ class AbstractAnalyticsManagerEventTest {
         String userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)";
         String resolution = "2560x1440";
 
-        Map<String, Object> properties = Collections.emptyMap();
-
-        analyticsManager.doSendEvent(AnalyticsEvent.WORKSPACE_STARTED, ownerId, ip, userAgent, resolution, properties);
-        analyticsManager.doSendEvent(AnalyticsEvent.EDITOR_USED, ownerId, ip, userAgent, resolution, properties);
+        analyticsManager.doSendEvent(AnalyticsEvent.WORKSPACE_STARTED, ownerId, ip, userAgent, resolution, new HashMap<String, Object>());
+        analyticsManager.doSendEvent(AnalyticsEvent.EDITOR_USED, ownerId, ip, userAgent, resolution, new HashMap<String, Object>());
 
         Mockito.verify(analyticsManager, Mockito.times(1))
                 .onEvent(any(), any(), any(), any(), any(), any());

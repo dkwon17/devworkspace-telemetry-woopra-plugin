@@ -17,9 +17,8 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.redhat.devworkspace.services.telemetry.woopra.exception.WoopraCredentialException;
+import com.redhat.devworkspace.services.telemetry.woopra.exception.SegmentDomainNotFoundException;
 import com.segment.analytics.Analytics;
 import com.segment.analytics.messages.TrackMessage;
 import org.eclipse.che.incubator.workspace.telemetry.base.AbstractAnalyticsManager;
@@ -34,25 +33,18 @@ import javax.enterprise.inject.Alternative;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.MessageFormat;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_INACTIVE;
 import static org.eclipse.che.incubator.workspace.telemetry.base.AnalyticsEvent.WORKSPACE_STOPPED;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -68,21 +60,13 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class AnalyticsManager extends AbstractAnalyticsManager {
 
     private static final Logger LOG = getLogger(AnalyticsManager.class);
-    private static final String pingRequestFormat = "http://www.woopra.com/track/ping?host={0}&cookie={1}&timeout={2}&ka={3}&ra={4}";
     private static final long startEventDebounceTime = 2000L;
-    private static final long pingTimeoutSeconds = 30;
-    private static final long pingTimeout = pingTimeoutSeconds * 1000;
-    private static final long noActivityTimeout = 60000 * 3;
 
     private final Analytics analytics;
 
     private long startEventTime;
 
     String segmentWriteKey;
-    String woopraDomain;
-
-    protected ScheduledExecutorService checkActivityExecutor = Executors
-            .newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("Analytics Activity Checker").build());
 
     @VisibleForTesting
     ScheduledExecutorService networkExecutor = Executors.newSingleThreadScheduledExecutor(
@@ -94,6 +78,8 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
     @VisibleForTesting
     HttpUrlConnectionProvider httpUrlConnectionProvider = null;
 
+    String sessionId;
+
     public AnalyticsManager(MainConfiguration config,
                             DevWorkspaceFinder devworkspaceFinder,
                             UsernameFinder usernameFinder,
@@ -102,7 +88,8 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
         super(config, devworkspaceFinder, usernameFinder);
 
         setSegmentWriteKey(config, httpUrlConnectionProvider);
-        setWoopraDomain(config, httpUrlConnectionProvider);
+        
+        this.sessionId = String.valueOf(System.currentTimeMillis());
 
         if (isEnabled()) {
             this.httpUrlConnectionProvider = httpUrlConnectionProvider;
@@ -111,38 +98,23 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
             analytics = null;
         }
 
-        long checkActivityPeriod = pingTimeoutSeconds / 2;
-
-        checkActivityExecutor.scheduleAtFixedRate(this::checkActivity, checkActivityPeriod, checkActivityPeriod, SECONDS);
-
         dispatchers = CacheBuilder.newBuilder().expireAfterAccess(1, TimeUnit.HOURS).maximumSize(10)
                 .removalListener((RemovalNotification<String, EventDispatcher> n) -> {
                     EventDispatcher dispatcher = n.getValue();
                     if (dispatcher != null) {
                         dispatcher.close();
                     }
-                }).build(CacheLoader.<String, EventDispatcher>from(userId -> newEventDispatcher(userId)));
+                }).build(CacheLoader.<String, EventDispatcher>from(userId -> newEventDispatcher(userId, this.sessionId)));
     }
 
     private void setSegmentWriteKey(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
         if (config.segmentWriteKey.isEmpty() && config.segmentWriteKeyEndpoint.isEmpty()) {
-            throw new WoopraCredentialException("Requires a Segment write key or the URL of an endpoint that will return the Segment write key. " +
+            throw new SegmentDomainNotFoundException("Requires a Segment write key or the URL of an endpoint that will return the Segment write key. " +
                     "Set either SEGMENT_WRITE_KEY or SEGMENT_WRITE_KEY_ENDPOINT");
         } else if (config.segmentWriteKey.isEmpty()) {
             segmentWriteKey = tryRequestFromUrl(config.segmentWriteKeyEndpoint.get(), httpUrlConnectionProvider);
         } else {
             segmentWriteKey = config.segmentWriteKey.get();
-        }
-    }
-
-    private void setWoopraDomain(MainConfiguration config, HttpUrlConnectionProvider httpUrlConnectionProvider) {
-        if (config.woopraDomain.isEmpty() && config.woopraDomainEndpoint.isEmpty()) {
-            throw new WoopraCredentialException("Requires a Woopra domain or the URL of an endpoint that will return the Woopra domain. " +
-                    "Set either WOOPRA_DOMAIN or WOOPRA_DOMAIN_ENDPOINT");
-        } else if (config.woopraDomain.isEmpty()) {
-            woopraDomain = tryRequestFromUrl(config.woopraDomainEndpoint.get(), httpUrlConnectionProvider);
-        } else {
-            woopraDomain = config.woopraDomain.get();
         }
     }
 
@@ -165,8 +137,8 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
         }
     }
 
-    private EventDispatcher newEventDispatcher(String userId) {
-        return new EventDispatcher(userId, this);
+    private EventDispatcher newEventDispatcher(String userId, String sessionId) {
+        return new EventDispatcher(userId, String.valueOf(sessionId));
     }
 
     @Override
@@ -176,26 +148,6 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
 
     public Analytics getAnalytics() {
         return analytics;
-    }
-
-    private void checkActivity() {
-        LOG.debug("In checkActivity");
-        long inactiveLimit = System.currentTimeMillis() - noActivityTimeout;
-        dispatchers.asMap().values().forEach(dispatcher -> {
-            LOG.debug("Checking activity of dispatcher for user: {}", dispatcher.getUserId());
-            if (dispatcher.getLastActivityTime() < inactiveLimit) {
-                LOG.debug("Sending 'WORKSPACE_INACTIVE' event for user: {}", dispatcher.getUserId());
-                if (dispatcher.sendTrackEvent(WORKSPACE_INACTIVE, commonProperties, dispatcher.getLastIp(),
-                        dispatcher.getLastUserAgent(), dispatcher.getLastResolution()) != null) {
-                    LOG.debug("Sent 'WORKSPACE_INACTIVE' event for user: {}", dispatcher.getUserId());
-                    return;
-                }
-                LOG.debug(
-                        "Skipped sending 'WORKSPACE_INACTIVE' event for user: {} since it is the same event as the previous one",
-                        dispatcher.getUserId());
-                return;
-            }
-        });
     }
 
     @Override
@@ -243,64 +195,24 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
 
         @VisibleForTesting
         String userId;
-        @VisibleForTesting
-        String cookie;
 
-        private AnalyticsEvent lastEvent = null;
+        private AnalyticsEvent lastEvent;
         @VisibleForTesting
-        Map<String, Object> lastEventProperties = null;
+        Map<String, Object> lastEventProperties;
         private long lastActivityTime;
         private long lastEventTime;
-        private String lastIp = null;
-        private String lastUserAgent = null;
-        private String lastResolution = null;
-        private ScheduledFuture<?> pinger = null;
+        private String lastIp;
+        private String lastUserAgent;
+        private String lastResolution;
+        private String sessionId;
 
-        EventDispatcher(String userId, AnalyticsManager manager) {
+        EventDispatcher(String userId, String sessionId) {
             this.userId = userId;
-            cookie = Hashing.md5().hashString(devworkspaceId + userId + System.currentTimeMillis(), StandardCharsets.UTF_8)
-                    .toString();
-            LOG.info("Analytics Woopra Cookie for user {} and workspace {} : {}", userId, devworkspaceId, cookie);
+            this.sessionId = sessionId;
         }
 
         void onActivity() {
             lastActivityTime = System.currentTimeMillis();
-        }
-
-        void sendPingRequest(boolean retrying) {
-            boolean failed = false;
-            try {
-                String uri = MessageFormat.format(pingRequestFormat, URLEncoder.encode(woopraDomain, "UTF-8"),
-                        URLEncoder.encode(cookie, "UTF-8"), Long.toString(pingTimeout), Long.toString(pingTimeout),
-                        UUID.randomUUID().toString());
-                LOG.debug("Sending a PING request to woopra for user '{}' and cookie {} : {}", getUserId(), cookie, uri);
-                HttpURLConnection httpURLConnection = httpUrlConnectionProvider.getHttpUrlConnection(uri);
-
-                if (HttpURLConnection.HTTP_OK == httpURLConnection.getResponseCode()) {
-                    return;
-                }
-
-                String responseMessage;
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
-                     StringWriter sw = new StringWriter()) {
-                    String inputLine;
-
-                    while ((inputLine = br.readLine()) != null) {
-                        sw.write(inputLine);
-                    }
-                    responseMessage = sw.toString();
-                }
-
-                LOG.warn("Cannot ping woopra for cookie {} - response message : {}", cookie, responseMessage);
-
-            } catch (Exception e) {
-                LOG.warn("Cannot ping woopra", e);
-                failed = true;
-            }
-
-            if (failed && lastEvent != null) {
-                sendTrackEvent(lastEvent, lastEventProperties, getLastIp(), getLastUserAgent(), getLastResolution(), true);
-            }
         }
 
         private boolean areEventsEqual(AnalyticsEvent event, Map<String, Object> properties) {
@@ -349,9 +261,7 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
                 eventId = UUID.randomUUID().toString();
                 TrackMessage.Builder messageBuilder = TrackMessage.builder(event.toString()).userId(userId).messageId(eventId);
 
-                ImmutableMap.Builder<String, Object> integrationBuilder = ImmutableMap.<String, Object>builder()
-                        .put("cookie", cookie).put("timeout", pingTimeout);
-                messageBuilder.integrationOptions("Woopra", integrationBuilder.build());
+                this.setupAmplitudeIntegration(messageBuilder);
 
                 ImmutableMap.Builder<String, Object> propertiesBuilder = ImmutableMap.<String, Object>builder()
                         .putAll(properties);
@@ -368,20 +278,12 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
 
                 LOG.debug("sending " + event.toString() + " (ip=" + theIp + " - userAgent=" + userAgent + ") with properties: "
                         + properties);
+
                 analytics.enqueue(messageBuilder);
 
                 lastEvent = event;
                 lastEventProperties = properties;
 
-                long pingPeriod = pingTimeoutSeconds / 3 + 2;
-
-                if (pinger != null) {
-                    pinger.cancel(true);
-                }
-
-                LOG.debug("scheduling ping request with the following delay: " + pingPeriod);
-                pinger = networkExecutor.scheduleAtFixedRate(() -> sendPingRequest(false), pingPeriod, pingPeriod,
-                        TimeUnit.SECONDS);
             }
             return eventId;
         }
@@ -414,11 +316,13 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
             return lastEventTime;
         }
 
+        void setupAmplitudeIntegration(TrackMessage.Builder messageBuilder) {
+            ImmutableMap.Builder<String, Object> integrationBuilder = ImmutableMap.<String, Object>builder()
+                .put("session_id", this.sessionId);
+            messageBuilder.integrationOptions("Actions Amplitude", integrationBuilder.build());
+        }
+
         void close() {
-            if (pinger != null) {
-                pinger.cancel(true);
-            }
-            pinger = null;
         }
     }
 
@@ -437,7 +341,6 @@ public class AnalyticsManager extends AbstractAnalyticsManager {
     }
 
     void shutdown() {
-        checkActivityExecutor.shutdown();
         if (analytics != null) {
             analytics.flush();
             try {

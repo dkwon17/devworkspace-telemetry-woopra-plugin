@@ -11,7 +11,7 @@
  */
 package com.redhat.devworkspace.services.telemetry.woopra;
 
-import com.redhat.devworkspace.services.telemetry.woopra.exception.WoopraCredentialException;
+import com.redhat.devworkspace.services.telemetry.woopra.exception.SegmentDomainNotFoundException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -47,41 +47,17 @@ public class AnalyticsManagerStartupTest {
     @Test
     public void willNotStartWithoutWriteKey() {
         MainConfiguration config = new MainConfigurationBuilder()
-                .woopraDomain("woopra.domain")
                 .build();
 
-        assertThrows(WoopraCredentialException.class, () -> {
-            AnalyticsManager am = new TestAnalyticsManager(config);
+        assertThrows(SegmentDomainNotFoundException.class, () -> {
+            new TestAnalyticsManager(config);
         }, "Requires a Segment write key or the URL of an endpoint that will return the Segment write key. " +
                 "Set either SEGMENT_WRITE_KEY or SEGMENT_WRITE_KEY_ENDPOINT");
     }
 
     @Test
-    public void willNotStartWithoutWoopraDomain() {
-        MainConfiguration config = new MainConfigurationBuilder()
-                .segmentWriteKey("segment.write.key")
-                .build();
-
-        assertThrows(WoopraCredentialException.class, () -> {
-            AnalyticsManager am = new TestAnalyticsManager(config);
-        }, "Requires a Woopra domain or the URL of an endpoint that will return the Woopra domain. " +
-                "Set either WOOPRA_DOMAIN or WOOPRA_DOMAIN_ENDPOINT");
-    }
-
-    @Test
-    public void readWoopraDomainFromEndpoint() {
-        MainConfiguration config = new MainConfigurationBuilder()
-                .segmentWriteKey("segment.write.key")
-                .woopraDomainEndpoint(TestHttpServer.ROUTE_URL + "?body=woopra.domain")
-                .build();
-        AnalyticsManager am = new TestAnalyticsManager(config);
-        assertEquals("woopra.domain", am.woopraDomain);
-    }
-
-    @Test
     public void readSegmentWriteKeyFromEndpoint() {
         MainConfiguration config = new MainConfigurationBuilder()
-                .woopraDomain("woopra.domain")
                 .segmentWriteKeyEndpoint(TestHttpServer.ROUTE_URL + "?body=segment.write.key")
                 .build();
         AnalyticsManager am = new TestAnalyticsManager(config);
@@ -89,37 +65,21 @@ public class AnalyticsManagerStartupTest {
     }
 
     @Test
-    public void readWoopraDomainAndSegmentWriteKeyFromEndpoint() {
+    public void readSegmentWriteKey() {
         MainConfiguration config = new MainConfigurationBuilder()
-                .woopraDomainEndpoint(TestHttpServer.ROUTE_URL + "?body=woopra.domain")
-                .segmentWriteKeyEndpoint(TestHttpServer.ROUTE_URL + "?body=segment.write.key")
+                .segmentWriteKey("segment.write.key")
                 .build();
         AnalyticsManager am = new TestAnalyticsManager(config);
-        assertEquals("woopra.domain", am.woopraDomain);
         assertEquals("segment.write.key", am.segmentWriteKey);
     }
 
     @Test
-    public void readWoopraDomainAndSegmentWriteKey() {
+    public void doNotReadSegmentWriteKeyFromEndpoint() {
         MainConfiguration config = new MainConfigurationBuilder()
-                .woopraDomain("woopra.domain")
                 .segmentWriteKey("segment.write.key")
-                .build();
-        AnalyticsManager am = new TestAnalyticsManager(config);
-        assertEquals("woopra.domain", am.woopraDomain);
-        assertEquals("segment.write.key", am.segmentWriteKey);
-    }
-
-    @Test
-    public void doNotReadWoopraDomainAndSegmentWriteKeyFromEndpoints() {
-        MainConfiguration config = new MainConfigurationBuilder()
-                .woopraDomain("woopra.domain")
-                .segmentWriteKey("segment.write.key")
-                .woopraDomainEndpoint(TestHttpServer.ROUTE_URL + "?body=woopra.domain.from.endpoint")
                 .segmentWriteKeyEndpoint(TestHttpServer.ROUTE_URL + "?body=segment.write.key.from.endpoint")
                 .build();
         AnalyticsManager am = new TestAnalyticsManager(config);
-        assertEquals("woopra.domain", am.woopraDomain);
         assertEquals("segment.write.key", am.segmentWriteKey);
     }
 }

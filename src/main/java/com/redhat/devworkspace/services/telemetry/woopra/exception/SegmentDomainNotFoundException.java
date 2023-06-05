@@ -11,13 +11,13 @@
  */
 package com.redhat.devworkspace.services.telemetry.woopra.exception;
 
-public class WoopraCredentialException extends RuntimeException {
+public class SegmentDomainNotFoundException extends RuntimeException {
 
-    public WoopraCredentialException() {
+    public SegmentDomainNotFoundException() {
         super();
     }
 
-    public WoopraCredentialException(String message) {
+    public SegmentDomainNotFoundException(String message) {
         super(message);
     }
 }
