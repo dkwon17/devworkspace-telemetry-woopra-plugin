@@ -1,0 +1,9 @@
+schemaVersion: 2.2.0
+metadata:
+  name: devworkspace-telemetry-plugin
+components:
+  - name: tools
+    container:
+      image: quay.io/devfile/universal-developer-image:ubi8-latest
+      mountSources: true
+      memoryLimit: 12Gi
